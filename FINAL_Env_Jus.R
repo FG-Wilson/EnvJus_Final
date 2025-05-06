@@ -7,6 +7,8 @@ library(ggplot2)
 library(readr)
 library(sf)
 library(stringr)
+library(readxl)
+library(purrr)
 
 #Loading Green Spaces list
 green_spaces <- read_delim("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Zonas_Verdes_2024.csv", delim = ";")
@@ -87,5 +89,168 @@ ggplot(madrid_map_joined) +
 
 #remember moncloa-aravaca has Casa de Campo of 1405 ha - in my list shows 1800, could also use the other file with mayor superficie to check if its the same after
 
-#now working with socio-economic data
+#For the socioeconomic data, the values were previously manually extracted to work only with relevant data as the excel is not formatted in a compatible way for working in R
 
+socio_econ <- read_excel ("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Madrid_district_socioecon_data.xlsx")
+
+#working the variables
+socio_econ <- socio_econ %>% 
+  mutate(terciarios_percentage = round((`Estudios Terciarios` / `Población`) * 100, 2)) %>% 
+  mutate(foreigners_percentage = round((`Extranjeros` / `Población`) * 100, 2)) %>% 
+  mutate(vulnerable_foreigners = round(`Extranjeros no EU ni OCDE` * `Población`)) %>% 
+  mutate(vulnerable_foreigners_percentage = round((vulnerable_foreigners / `Población`) * 100, 2))
+
+socio_econ <- socio_econ %>% 
+  mutate(Distrito_CLEAN = str_to_title(str_squish(Distrito)))
+
+#Fixing mistakes and merging problems
+socio_econ <- socio_econ %>%
+  mutate(Distrito_CLEAN = case_when(
+    Distrito_CLEAN == "Chamaratín" ~ "Chamartín",
+    TRUE ~ Distrito_CLEAN
+  ))
+
+socio_econ <- socio_econ %>%
+  mutate(Distrito_CLEAN = case_when(
+    Distrito_CLEAN == "San Blas-Canillejas" ~ "San Blas - Canillejas",
+    Distrito_CLEAN == "Fuencarral-El Pardo" ~ "Fuencarral - El Pardo",
+    Distrito_CLEAN == "Moncloa-Aravaca" ~ "Moncloa - Aravaca",
+    TRUE ~ Distrito_CLEAN
+  ))
+
+#joined data
+combined_data <- left_join(distrito_summary, socio_econ, by = 'Distrito_CLEAN')
+
+#plots on vulnerable foreigners 
+ggplot(combined_data, aes(x = vulnerable_foreigners_percentage, y = total_area_ha)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray") +
+  labs(
+    title = "Total Green Space vs. % Vulnerable Foreigners by District",
+    x = "% Vulnerable Foreigners (non-EU/non-OECD)",
+    y = "Total Green Space Area (ha)"
+  ) +
+  theme_bw()
+
+ggplot(combined_data, aes(x = vulnerable_foreigners_percentage, y = green_space_count)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray") +
+  labs(
+    title = "Green Space Count vs. % Vulnerable Foreigners by District",
+    x = "% Vulnerable Foreigners (non-EU/non-OECD)",
+    y = "Green Space Count (n)"
+  ) +
+  theme_bw()
+
+#plots on general foreigners 
+ggplot(combined_data, aes(x = foreigners_percentage, y = total_area_ha)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray") +
+  labs(
+    title = "Total Green Space vs. % Foreigners by District",
+    x = "% Foreigners",
+    y = "Total Green Space Area (ha)"
+  ) +
+  theme_bw()
+
+ggplot(combined_data, aes(x = foreigners_percentage, y = green_space_count)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray") +
+  labs(
+    title = "Green Space Count vs. % Foreigners by District",
+    x = "% Foreigners",
+    y = "Green Space Count (n)"
+  ) +
+  theme_bw()
+
+#now controlling for population density 
+
+combined_data <- combined_data %>%
+  mutate(
+    green_area_per_1000 = round((total_area_ha / Población) * 1000, 2)
+  )
+
+ggplot(combined_data, aes(x = vulnerable_foreigners_percentage, y = green_area_per_1000)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray") +
+  labs(
+    title = "Green Space per 1,000 Residents vs. % Vulnerable Foreigners",
+    x = "% Vulnerable Foreigners (non-EU/non-OECD)",
+    y = "Green Space (ha per 1,000 residents)"
+  ) +
+  theme_minimal()
+
+#removing Moncloa - Aravaca and other outliers  - EXPLAIN WHY
+
+combined_data_filtered <- combined_data %>%
+  filter(Distrito_CLEAN != "Moncloa - Aravaca")
+
+combined_data_filtered <- combined_data %>%
+  filter(total_area_ha < 500)
+
+ggplot(combined_data_filtered, aes(x = vulnerable_foreigners_percentage, y = total_area_ha)) +
+  geom_point(color = "darkgreen", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray") +
+  labs(
+    title = "Total Green Space vs. % Vulnerable Foreigners (Outlier Removed)",
+    x = "% Vulnerable Foreigners",
+    y = "Total Green Space (ha)"
+  ) +
+  theme_minimal()
+
+#running regression now 
+
+combined_data <- combined_data %>%
+  rename(renta_media = `Renta Neta media anual (Urban audit)`)
+
+model <- lm(total_area_ha ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
+
+summary(model)
+
+plot(model)
+
+model_log <- lm(log(total_area_ha) ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
+summary(model_log)
+plot(model_log)
+
+#peer capita
+
+combined_data <- combined_data %>%
+  mutate(green_space_per_1000 = round((total_area_ha / Población) * 1000, 2))
+
+model_percap <- lm(green_space_per_1000 ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
+summary(model_percap)
+
+combined_data <- combined_data %>%
+  mutate(log_green_per_1000 = log(green_space_per_1000 + 1))
+model_log_percap <- lm(log_green_per_1000 ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
+summary(model_log_percap)
+
+#everything points to more education less green space lolz
+
+#using satisfaction data now
+combined_data <- combined_data %>%
+  rename(
+    satisfaction_n = `Satisfaccion con el barrio`,
+    satisfaction_gs = `Satisfaccion espacios verdes`)
+
+model_sat_gs <- lm(satisfaction_gs ~ green_space_per_1000 + renta_media + vulnerable_foreigners_percentage, data = combined_data)
+summary(model_sat_gs)
+
+#seems like more green space means more satisfied people - with GS, should check with neighbourhood too
+library(ggplot2)
+
+ggplot(combined_data, aes(x = green_space_per_1000, y = satisfaction_gs)) +
+  geom_point(color = "forestgreen", size = 3) +
+  geom_smooth(method = "lm", color = "gray") +
+  labs(
+    title = "Do Greener Districts Report Higher Satisfaction?",
+    x = "Green Space per 1,000 Residents (ha)",
+    y = "Satisfaction with Green Spaces (1–10)"
+  ) +
+  theme_minimal()
+
+model_sat_n <- lm(satisfaction_n ~ green_space_per_1000 + renta_media + vulnerable_foreigners_percentage, data = combined_data)
+summary(model_sat_n)
+
+#people might be racist, whats new? income and foreigner drive satisfaction with the neighbourhood
