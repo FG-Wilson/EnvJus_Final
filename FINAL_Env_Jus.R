@@ -30,8 +30,6 @@ distrito_summary <- green_spaces %>%
 
 #plot of previous summary 
 
-library(ggplot2)
-
 ggplot(distrito_summary, aes(x = reorder(Distrito, total_area_ha), y = total_area_ha)) +
   geom_col(fill = "forestgreen") +
   geom_text(aes(label = green_space_count), 
@@ -85,7 +83,7 @@ ggplot(madrid_map_joined) +
     subtitle = "Measured in hectares (ha)",
     fill = "Total Area"
   ) +
-  theme_minimal()
+  theme_bw()
 
 #remember moncloa-aravaca has Casa de Campo of 1405 ha - in my list shows 1800, could also use the other file with mayor superficie to check if its the same after
 
