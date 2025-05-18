@@ -1,4 +1,6 @@
-#Environmental Justice Final Assignment 
+#Environmental Justice Final Assignment - CHECK ALL CODE AND START CLEANING
+
+#Github folder -> https://github.com/FG-Wilson/EnvJus_Final 
 
 #Loading packages
 library(tidyverse)
@@ -105,14 +107,14 @@ names(madrid_map)
 madrid_map <- madrid_map %>%
   mutate(NOMBRE_CLEAN = str_to_title(str_trim(NOMBRE)))
 
-distrito_summary <- distrito_summary %>%
+distrito_summary_no_top_5 <- distrito_summary_no_top_5 %>%
   mutate(Distrito_CLEAN = str_to_title(str_trim(Distrito)))
 
-setdiff(madrid_map$NOMBRE_CLEAN, distrito_summary$Distrito_CLEAN) #shows that 3 districts did not match/can delete after
+setdiff(madrid_map$NOMBRE_CLEAN, distrito_summary_no_top_5$Distrito_CLEAN) #shows that 3 districts did not match/can delete after
 
 # fixing districts that did not match 
 
-distrito_summary <- distrito_summary %>%
+distrito_summary_no_top_5 <- distrito_summary_no_top_5 %>%
   mutate(Distrito_CLEAN = case_when(
     Distrito_CLEAN == "Moncloa-Aravaca" ~ "Moncloa - Aravaca",
     Distrito_CLEAN == "Fuencarral-El Pardo" ~ "Fuencarral - El Pardo",
@@ -120,20 +122,36 @@ distrito_summary <- distrito_summary %>%
     TRUE ~ Distrito_CLEAN
   ))
 
-
-#joined by name map for plotting map with areas
+#joined by name for plotting map with areas total and without top 5
 madrid_map_joined <- madrid_map %>%
+  left_join(distrito_summary_no_top_5, by = c("NOMBRE_CLEAN" = "Distrito_CLEAN"))
+
+madrid_map_joined_total_area <- madrid_map %>%
   left_join(distrito_summary, by = c("NOMBRE_CLEAN" = "Distrito_CLEAN"))
 
-#plotting map 
+#map with all parks
+ggplot(madrid_map_joined_total_area) +
+  geom_sf(aes(fill = total_area_ha), color = "white", size = 0.3) +
+  geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2, color = "black") +
+  scale_fill_steps(name = "Green Space (ha)", 
+                   breaks = c(0,25,50,100,200,500,2000), #trying to adjust numbers for better visualisation 
+                   low = "lightgreen", high = "darkgreen") +
+  labs(
+    title = "Green Space Area by District in Madrid (all parks included)",
+    subtitle = "Measured in hectares (ha)",
+    fill = "Total Area"
+  ) +
+  theme_bw()
+
+#plotting map without outliers
 ggplot(madrid_map_joined) +
   geom_sf(aes(fill = total_area_ha), color = "white", size = 0.3) +
   geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2, color = "black") +
   scale_fill_steps(name = "Green Space (ha)", 
-                   breaks = c(0,20,50,100,200,500,2000), #check what a good visualisation can be
+                   breaks = c(0,25,50,100,200), #check what a good visualisation can be
                    low = "lightgreen", high = "darkgreen") +
   labs(
-    title = "Green Space Area by District in Madrid",
+    title = "Green Space Area by District in Madrid (no outliers)",
     subtitle = "Measured in hectares (ha)",
     fill = "Total Area"
   ) +
@@ -141,7 +159,7 @@ ggplot(madrid_map_joined) +
 
 #remember moncloa-aravaca has Casa de Campo of 1405 ha - in my list shows 1800, could also use the other file with mayor superficie to check if its the same after
 
-#For the socioeconomic data, the values were previously manually extracted to work only with relevant data as the excel is not formatted in a compatible way for working in R
+#For the socio-economic data, the values were previously manually extracted to work only with relevant data as the excel is not formatted in a compatible way for working in R
 
 socio_econ <- read_excel ("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Madrid_district_socioecon_data.xlsx")
 
@@ -170,8 +188,43 @@ socio_econ <- socio_econ %>%
     TRUE ~ Distrito_CLEAN
   ))
 
-#joined data
-combined_data <- left_join(distrito_summary, socio_econ, by = 'Distrito_CLEAN')
+#joining socio_econ and map for visualisation of satisfaction - bit useless in the end
+
+madrid_map_joined <- madrid_map_joined %>% 
+  left_join(socio_econ, by = c("NOMBRE_CLEAN" = "Distrito_CLEAN"))
+
+ggplot(madrid_map_joined) +
+  geom_sf(aes(fill = `Satisfaccion con el barrio`), color = "white", size = 0.3) +
+  geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2, color = "black") +
+  scale_fill_steps(name = "Satisfaction (1–10)",
+                   breaks = seq(6, 8, by = 0.5),
+                   low = "lightblue", high = "darkblue") +
+  labs(
+    title = "District Satisfaction in Madrid",
+    subtitle = "Resident ratings from 1 (low) to 10 (high)",
+    fill = "Satisfaction"
+  ) +
+  theme_bw()
+
+satisfaction_long <- madrid_map_joined %>%
+  select(Distrito.y, `Satisfaccion con el barrio`, `Satisfaccion espacios verdes`) %>%
+  pivot_longer(cols = c(`Satisfaccion con el barrio`, `Satisfaccion espacios verdes`),
+               names_to = "type", values_to = "score")
+
+ggplot(satisfaction_long, aes(x = score, y = reorder(Distrito.y, score), color = type)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("steelblue", "forestgreen"),
+                     labels = c("District", "Green Space")) +
+  labs(
+    title = "Comparison of District and Green Space Satisfaction",
+    x = "Satisfaction (1–10)",
+    y = "District",
+    color = "Satisfaction with"
+  ) +
+  theme_minimal()
+
+#joined data without outliers
+combined_data <- left_join(distrito_summary_no_top_5, socio_econ, by = 'Distrito_CLEAN')
 
 #plots on vulnerable foreigners 
 ggplot(combined_data, aes(x = vulnerable_foreigners_percentage, y = total_area_ha)) +
@@ -232,38 +285,26 @@ ggplot(combined_data, aes(x = vulnerable_foreigners_percentage, y = green_area_p
   ) +
   theme_minimal()
 
-#removing Moncloa - Aravaca and other outliers  - EXPLAIN WHY
-
-combined_data_filtered <- combined_data %>%
-  filter(total_area_ha < 500) %>% 
-  mutate(log_green_space = log(green_space_per_1000 + 1))
-
-ggplot(combined_data_filtered, aes(x = vulnerable_foreigners_percentage, y = total_area_ha)) +
-  geom_point(color = "darkgreen", size = 3) +
-  geom_smooth(method = "lm", se = FALSE, color = "gray") +
-  labs(
-    title = "Total Green Space vs. % Vulnerable Foreigners (Outliers Removed)",
-    x = "% Vulnerable Foreigners",
-    y = "Total Green Space (ha)"
-  ) +
-  theme_minimal()
+#Trying the same with the complete list of parks INCOMPLETE, NEED TO COPY CODE FROM UP
+combined_data_full_area <- left_join(distrito_summary, socio_econ, by = 'Distrito_CLEAN')
 
 #running regression now 
 
 combined_data <- combined_data %>%
   rename(renta_media = `Renta Neta media anual (Urban audit)`)
 
-model <- lm(total_area_ha ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
+#model 1 is with total area, foreigners controlling by studies and avg rent
+model_1 <- lm(total_area_ha ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
 
-summary(model)
+summary(model_1)
 
-plot(model)
+plot(model_1)
 
-model_log <- lm(log(total_area_ha) ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
-summary(model_log)
-plot(model_log)
+model_1_log <- lm(log(total_area_ha) ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
+summary(model_1_log)
+plot(model_1_log)
 
-#per capita
+#per capita - EVERTHING UNDER HERE IS A BIT CONFUSING
 
 combined_data <- combined_data %>%
   mutate(green_space_per_1000 = round((total_area_ha / Población) * 1000, 2))
@@ -272,10 +313,11 @@ model_percap <- lm(green_space_per_1000 ~ vulnerable_foreigners_percentage + ter
 summary(model_percap)
 
 combined_data <- combined_data %>%
-  mutate(log_green_per_1000 = log(green_space_per_1000 + 1))
+mutate(log_green_per_1000 = log(green_space_per_1000 + 1))
 model_log_percap <- lm(log_green_per_1000 ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
 
 summary(model_log_percap)
+plot(model_log_percap)
 
 #everything points to more education less green space lolz
 
@@ -290,7 +332,6 @@ summary(model_sat_gs)
 plot(model_sat_gs)
 
 #seems like more green space means more satisfied people - with GS, should check with neighbourhood too
-library(ggplot2)
 
 ggplot(combined_data, aes(x = green_space_per_1000, y = satisfaction_gs)) +
   geom_point(color = "forestgreen", size = 3) +
@@ -307,7 +348,7 @@ summary(model_sat_n)
 
 #people might be racist, whats new? income and foreigner drive satisfaction with the neighbourhood
 
-#trying log models and removing outlier districts
+#trying log models and removing outlier districts - ALL THIS I SHOIULD IGNORE AND WORK WITHOUT TOP 5
 combined_data$log_green_space <- log(combined_data$green_space_per_1000 + 1)
 model_log <- lm(log_green_space ~ vulnerable_foreigners_percentage + terciarios_percentage + renta_media, data = combined_data)
 summary(model_log)
