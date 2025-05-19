@@ -17,6 +17,7 @@ library(modelsummary)
 library(flextable)
 library(janitor)
 library(pandoc)
+library(ggrepel)
 
 #Loading Green Spaces list
 green_spaces <- read_delim("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Zonas_Verdes_2024.csv", delim = ";")
@@ -153,31 +154,34 @@ madrid_map_joined_complete <- madrid_map %>%
 
 #map with all parks -> madrid_map_joined_complete df with all parks
 ggplot(madrid_map_joined_complete) +
-  geom_sf(aes(fill = total_area_ha), color = "white", size = 0.3) +
-  geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2, color = "black") +
-  scale_fill_steps(name = "Green Space (ha)", 
-                   breaks = c(0,25,50,100,200,500,2000), #trying to adjust numbers for better visualisation 
-                   low = "lightgreen", high = "darkgreen") +
+  geom_sf(aes(fill = total_area_ha), color = "white", size = 0.2) +
+  geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2.5, color = "black") +
+  scale_fill_distiller(palette = "Greens", direction = 1, name = "Green Space (ha)", breaks = c(0,100,500,1000,2000)) +
   labs(
-    title = "Green Space Area by District in Madrid (all parks included)",
+    title = "Green Space Area by District in Madrid",
     subtitle = "Measured in hectares (ha)",
     fill = "Total Area"
   ) +
-  theme_bw()
+  theme_bw()+ 
+  theme(axis.text = element_blank(),
+                    axis.ticks = element_blank(),
+                    axis.title = element_blank())
 
 #plotting map without outliers
 ggplot(madrid_map_joined) +
   geom_sf(aes(fill = total_area_ha), color = "white", size = 0.3) +
   geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2, color = "black") +
-  scale_fill_steps(name = "Green Space (ha)", 
-                   breaks = c(0,25,50,100,200), #check what a good visualisation can be
-                   low = "lightgreen", high = "darkgreen") +
+  scale_fill_distiller(palette = "Greens", direction = 1, name = "Green Space (ha)") +
   labs(
     title = "Green Space Area by District in Madrid (no outliers)",
     subtitle = "Measured in hectares (ha)",
     fill = "Total Area"
   ) +
-  theme_bw()
+  theme_bw() +
+  theme(axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title = element_blank())
+
 
 #remember moncloa-aravaca has Casa de Campo of 1405 ha - in my list shows 1800, could also use the other file with mayor superficie to check if its the same after
 
@@ -217,16 +221,20 @@ madrid_map_joined <- madrid_map_joined %>%
 
 ggplot(madrid_map_joined) +
   geom_sf(aes(fill = `Satisfaccion con el barrio`), color = "white", size = 0.3) +
-  geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2, color = "black") +
-  scale_fill_steps(name = "Satisfaction (1–10)",
-                   breaks = seq(6, 8, by = 0.5),
-                   low = "lightblue", high = "darkblue") +
+  geom_sf_text(aes(label = NOMBRE_CLEAN), size = 2.5, color = "darkgreen") +
+  scale_fill_viridis_c(
+    option = "magma", 
+    name = "Satisfaction (1–10)",
+    breaks = seq(6, 8, by = 0.5))+
   labs(
     title = "District Satisfaction in Madrid",
     subtitle = "Resident ratings from 1 (low) to 10 (high)",
     fill = "Satisfaction"
   ) +
-  theme_bw()
+  theme_bw() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank())
 
 satisfaction_long <- madrid_map_joined %>%
   select(Distrito.y, `Satisfaccion con el barrio`, `Satisfaccion espacios verdes`) %>%
