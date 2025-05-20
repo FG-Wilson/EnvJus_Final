@@ -1,4 +1,4 @@
-#Environmental Justice Final Assignment - CHECK ALL CODE AND START CLEANING
+#Environmental Justice Final Assignment
 
 #Github folder -> https://github.com/FG-Wilson/EnvJus_Final 
 
@@ -17,10 +17,9 @@ library(modelsummary)
 library(flextable)
 library(janitor)
 library(pandoc)
-library(ggrepel)
 
 #Loading Green Spaces list
-green_spaces <- read_delim("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Zonas_Verdes_2024.csv", delim = ";")
+green_spaces <- read_delim("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Data/Zonas_Verdes_2024.csv", delim = ";")
 
 
 green_spaces <- green_spaces %>% #creating a column with the clean number for area
@@ -105,7 +104,7 @@ ggplot(distrito_summary_no_top_5, aes(x = reorder(Distrito, total_area_ha), y = 
   
 #Shapefile for districts to create maps
 
-madrid_map <- st_read("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Distritos/DISTRITOS.shp")
+madrid_map <- st_read("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Data/Distritos_Shp/DISTRITOS.shp")
 
 names(madrid_map)
 
@@ -183,11 +182,11 @@ ggplot(madrid_map_joined) +
       axis.title = element_blank())
 
 
-#remember moncloa-aravaca has Casa de Campo of 1405 ha - in my list shows 1800, could also use the other file with mayor superficie to check if its the same after
+#Moncloa-Aravaca has Casa de Campo of 1405 ha according to Google while ion my list shows 1800. Discrepancy. 
 
 #For the socio-economic data, the values were previously manually extracted to work only with relevant data as the excel is not formatted in a compatible way for working in R
 
-socio_econ <- read_excel ("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Madrid_district_socioecon_data.xlsx")
+socio_econ <- read_excel ("/Users/federicowilson/Desktop/Hertie/Semester 4/Env Justice/EnvJus_Final/Data/Madrid_district_socioecon_data.xlsx")
 
 #working the variables
 socio_econ <- socio_econ %>% 
@@ -214,7 +213,7 @@ socio_econ <- socio_econ %>%
     TRUE ~ Distrito_CLEAN
   ))
 
-#joining socio_econ and map for visualisation of satisfaction - added to supplementary 
+#joining socio_econ and map for visualisation of satisfaction - NOT USED
 
 madrid_map_joined <- madrid_map_joined %>% 
   left_join(socio_econ, by = c("NOMBRE_CLEAN" = "Distrito_CLEAN"))
@@ -428,7 +427,7 @@ model_5 <- lm(log(total_area_ha) ~ vulnerable_foreigners_percentage +
 
 summary(model_5)
 
-#plot without Moncloa-Aravaca and Hortaleza, last model 
+#plot without Moncloa-Aravaca and Hortaleza
 
 no_MA_H_data <- combined_data_complete %>% 
   filter(total_area_ha < 500) %>% 
